@@ -452,12 +452,19 @@ function nbWireNotePanel(panel, { inline = false } = {}) {
   const q = role => bodyScoped.querySelector(`[data-role="${role}"]`);
   const headEl = panel.el.classList?.contains("nb-panel") ? panel.el.querySelector(".nb-head") : panel.bodyEl.closest(".dir-note")?.querySelector(".dir-note-head");
   const s = panel.state;
-     function nbInsertChecklist(panel) {
-     const s = panel.state;
-     if (s.mode !== "edit") { s.mode = "edit"; nbRenderNoteBody(panel); }
-     const ta = panel.bodyEl.querySelector("textarea");
-     if (!ta) return;
-     const start = ta.selectionStart, end = ta.selectionEnd;
+     function nbInsertChecklist(panel, selection = null, selectedText = "") {
+      const s = panel.state;
+      if (s.mode !== "edit") {
+        const previewText = String(selectedText || window.getSelection?.()?.toString() || "");
+        const previewStart = previewText.trim() ? s.content.indexOf(previewText) : -1;
+        if (previewStart >= 0) selection = { start: previewStart, end: previewStart + previewText.length };
+        s.mode = "edit";
+        nbRenderNoteBody(panel);
+      }
+      const ta = panel.bodyEl.querySelector("textarea");
+      if (!ta) return;
+      const start = selection?.start ?? ta.selectionStart;
+      const end = selection?.end ?? ta.selectionEnd;
      const lineStart = s.content.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
      const nextBreak = s.content.indexOf("\n", end);
      const lineEnd = nextBreak < 0 ? s.content.length : nextBreak;
@@ -475,10 +482,25 @@ function nbWireNotePanel(panel, { inline = false } = {}) {
      if (next) { next.focus(); next.selectionStart = lineStart; next.selectionEnd = lineStart + converted.length; }
      nbScheduleSave(panel);
    }
-      q("insert-checklist").onmousedown = e => e.preventDefault();
-   q("insert-checklist").onclick = () => {
-     nbInsertChecklist(panel);
-     return;
+    const preserveChecklistSelection = () => {
+      const ta = panel.bodyEl.querySelector("textarea");
+      if (ta && s.mode === "edit") {
+        panel.pendingChecklistSelection = { start: ta.selectionStart, end: ta.selectionEnd };
+        panel.pendingChecklistText = "";
+      } else {
+        panel.pendingChecklistSelection = null;
+        panel.pendingChecklistText = window.getSelection?.()?.toString() ?? "";
+      }
+    };
+    q("insert-checklist").onpointerdown = preserveChecklistSelection;
+    q("insert-checklist").onmousedown = e => { preserveChecklistSelection(); e.preventDefault(); };
+    q("insert-checklist").onclick = () => {
+      const selection = panel.pendingChecklistSelection;
+      const selectedText = panel.pendingChecklistText;
+      panel.pendingChecklistSelection = null;
+      panel.pendingChecklistText = "";
+      nbInsertChecklist(panel, selection, selectedText);
+      return;
      s.mode = "edit";
      nbRenderNoteBody(panel);
      const ta = panel.bodyEl.querySelector("textarea");
@@ -746,10 +768,23 @@ function nbRenderNoteBody(panel) {
     nbRenderNoteHistory(panel);
   } else {
     body.innerHTML = s.content.trim() ? nbRenderMarkdown(s.content) : '<div class="empty-tip">空便利贴 — 点击此处开始编辑</div>';
+    let selecting = false;
+    let pointerStart = null;
+    body.onpointerdown = e => {
+      if (e.button !== 0 || e.target.closest("[data-toggle], a, img, button")) return;
+      pointerStart = { x: e.clientX, y: e.clientY };
+      selecting = false;
+    };
+    body.onpointermove = e => {
+      if (!pointerStart || selecting) return;
+      if (Math.hypot(e.clientX - pointerStart.x, e.clientY - pointerStart.y) > 4) selecting = true;
+    };
     body.onclick = e => {
       if (e.target.closest("[data-toggle], a, img, button")) return;
+      if (selecting) { pointerStart = null; selecting = false; return; }
       const selection = window.getSelection?.();
       if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+      pointerStart = null;
       s.mode = "edit";
       nbRenderNoteBody(panel);
       panel.bodyEl.querySelector("textarea")?.focus();
