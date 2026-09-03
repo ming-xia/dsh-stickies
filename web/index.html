@@ -827,12 +827,13 @@ function nbFlushPendingSaves() {
     clearTimeout(s.saveTimer);
     const body = JSON.stringify({ id: s.id, content: s.content, author: "human", note: "离开页面前自动保存" });
     try {
-      navigator.sendBeacon(`${NOTES_API}/save`, new Blob([body], { type: "application/json" }));
+      const queued = navigator.sendBeacon(`${NOTES_API}/save`, new Blob([body], { type: "application/json" }));
+      if (queued) continue;
     } catch {
-      fetch(`${NOTES_API}/save`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true
-      }).catch(() => {});
     }
+    fetch(`${NOTES_API}/save`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true
+    }).catch(() => {});
   }
 }
 
