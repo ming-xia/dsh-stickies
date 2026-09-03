@@ -107,7 +107,7 @@
   .nb-stats .btn:hover { background: var(--st-soft); }
   .nb-stats .btn.active { background: var(--st-strong); border-color: var(--st-strong); color: #fff; }
   .nb-panel > [data-role="note-host"] { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .nb-body-inner { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px; scrollbar-width: thin; scrollbar-color: var(--st-border) transparent; }
+  .nb-body-inner { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px; scrollbar-width: thin; scrollbar-color: var(--st-border) transparent; user-select: text; }
   .nb-body-inner::-webkit-scrollbar, .nb-body-inner textarea::-webkit-scrollbar, .dir-list::-webkit-scrollbar, .sticky-history::-webkit-scrollbar { width: 2px; height: 2px; }
   .nb-body-inner::-webkit-scrollbar-track, .nb-body-inner textarea::-webkit-scrollbar-track, .dir-list::-webkit-scrollbar-track, .sticky-history::-webkit-scrollbar-track { background: transparent; }
   .nb-body-inner::-webkit-scrollbar-thumb, .nb-body-inner textarea::-webkit-scrollbar-thumb, .dir-list::-webkit-scrollbar-thumb, .sticky-history::-webkit-scrollbar-thumb { background: var(--st-border); border-radius: 2px; }
@@ -193,7 +193,7 @@
   .dir-note-resizer::after { content: ""; position: absolute; left: 50%; top: -3px; width: 34px; border-top: 2px solid var(--st-strong); transform: translateX(-50%); }
   .dir-note-resizer:hover, .dir-note.resizing .dir-note-resizer { opacity: 1; }
   .dir-note.resizing { user-select: none; }
-  .md-content { color: var(--st-text); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  .md-content { color: var(--st-text); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; user-select: text; cursor: text; }
   .md-content > :first-child { margin-top: 0; }
   .md-content > :last-child { margin-bottom: 0; }
   .md-content h1, .md-content h2, .md-content h3, .md-content h4, .md-content h5, .md-content h6 { color: var(--st-text); line-height: 1.35; margin: 14px 0 6px; }
@@ -746,7 +746,14 @@ function nbRenderNoteBody(panel) {
     nbRenderNoteHistory(panel);
   } else {
     body.innerHTML = s.content.trim() ? nbRenderMarkdown(s.content) : '<div class="empty-tip">空便利贴 — 点击此处开始编辑</div>';
-    body.onclick = e => { if (e.target.closest("[data-toggle], a, img, button")) return; s.mode = "edit"; nbRenderNoteBody(panel); panel.bodyEl.querySelector("textarea")?.focus(); };
+    body.onclick = e => {
+      if (e.target.closest("[data-toggle], a, img, button")) return;
+      const selection = window.getSelection?.();
+      if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+      s.mode = "edit";
+      nbRenderNoteBody(panel);
+      panel.bodyEl.querySelector("textarea")?.focus();
+    };
     body.querySelectorAll("[data-toggle]").forEach(box => {
       box.onclick = () => nbToggleItem(panel, Number(box.dataset.toggle));
     });
