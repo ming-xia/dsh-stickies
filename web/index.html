@@ -91,7 +91,7 @@
   .nb-head {
     display: flex; align-items: center; gap: 6px; padding: 8px 12px;
     background: color-mix(in srgb, var(--st-head) 76%, #fff); border-bottom: 1px solid color-mix(in srgb, var(--st-border) 55%, transparent);
-    cursor: move; user-select: none;
+    cursor: move; user-select: none; touch-action: none;
   }
   .nb-head .title { font-weight: 700; font-size: 14px; color: var(--st-text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nb-head .icon-btn {
@@ -180,7 +180,7 @@
   .dir-note-head .info .d { font-size: 11px; color: var(--st-muted); margin-top: 1px; }
   .dir-note-head .prog { font-size: 11px; color: var(--st-muted); flex-shrink: 0; }
   .dir-note-head .prog b { color: var(--st-strong); }
-  .dir-note-body { border-top: 1px solid color-mix(in srgb, var(--dir-note-color) 20%, #eef0f2); background: #fff; display: flex; flex-direction: column; height: min(560px, calc(100vh - 190px)); min-height: 120px; }
+  .dir-note-body { border-top: 1px solid color-mix(in srgb, var(--dir-note-color) 20%, #eef0f2); background: #fff; display: flex; flex-direction: column; height: min(560px, calc(100vh - 190px)); min-height: 120px; touch-action: auto; user-select: text; }
   .dir-note:not(.expanded) .dir-note-body { display: none; min-height: 0; }
   .dir-note-body > .nb-stats, .dir-note-body > .nb-foot { flex-shrink: 0; }
   .dir-note-body > .nb-body-inner { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
@@ -942,6 +942,8 @@ function nbFocusPanel(key) {
 function nbMakeDraggable(panel) {
   const { el } = panel;
   const handle = el.querySelector(".nb-head");
+  if (!handle) return;
+  handle.setAttribute("data-drag-handle", "true");
   let startX = 0, startY = 0, origLeft = 0, origTop = 0, dragging = false, pointerId = null;
   const embeddedNote = () => document.body.dataset.embedded === "note" && window.parent !== window;
   const onMove = e => {
@@ -983,6 +985,7 @@ function nbMakeDraggable(panel) {
     }
   };
   handle.addEventListener("pointerdown", e => {
+    if (e.currentTarget !== handle) return;
     if (e.target.closest("button") || e.target.closest(".cp")) return;
     if (el.classList.contains("pill")) return;
     dragging = true;
@@ -1268,6 +1271,8 @@ function nbDockBack(panel) {
 
 function nbBindEntryGestures(dirPanel, entry, meta) {
   const head = entry.querySelector(".dir-note-head");
+  if (!head) return;
+  head.setAttribute("data-drag-handle", "true");
   let startX = 0, startY = 0, moved = false, gesture = null, ghost = null, pointerId = null, dragBounds = null, ghostRaf = 0, ghostPending = null;
 
   function dirRect() { return dirPanel.el.getBoundingClientRect(); }
@@ -1307,6 +1312,7 @@ function nbBindEntryGestures(dirPanel, entry, meta) {
   }
 
   head.addEventListener("pointerdown", e => {
+    if (e.currentTarget !== head) return;
     if (e.target.closest("button") || e.target.closest(".cp")) return;
     startX = e.clientX; startY = e.clientY;
     pointerId = e.pointerId;
