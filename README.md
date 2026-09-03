@@ -1,4 +1,4 @@
-# Stickies
+# dsh-stickies
 
 一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的本地优先 Markdown 便利贴插件。
 
@@ -18,7 +18,7 @@ Stickies 将轻量笔记放在当前对话旁边，方便记录需求、问题�
 在已安装 DSH CLI 的 DeepSeek Harness 环境中执行：
 
 ```bash
-dsh plugin install https://github.com/ming-xia/stickies
+dsh plugin --profile web add https://github.com/ming-xia/dsh-stickies
 ```
 
 按提示重启 Web profile，然后打开 Harness Web 页面。对话标题栏中会出现 `🗒️ 便利贴` 按钮。
