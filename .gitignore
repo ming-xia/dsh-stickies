@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# Local note data and preview artifacts
+work/
+*.log

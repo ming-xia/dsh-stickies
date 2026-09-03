@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>便利贴</title>
+<style>
+  :root { --panel:#fff; --panel-2:#f0f2f5; --border:#e2e5ea; --text:#1c2330; --muted:#6b7484; --accent:#2f6fed; --accent-soft:#e8f0fe; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI", "Microsoft YaHei", system-ui, sans-serif; background:#f5f6f8; color:var(--text); font-size:14px; line-height:1.55; min-height:100vh; }
+  header { display:flex; align-items:center; gap:14px; padding:10px 20px; background:var(--panel); border-bottom:1px solid var(--border); }
+  header strong { font-size:15px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  .spacer { flex:1; }
+  .btn { background:var(--panel); color:var(--text); border:1px solid var(--border); padding:5px 14px; border-radius:7px; cursor:pointer; font-size:13px; transition:background .15s; }
+  .btn:hover { background:var(--panel-2); }
+  .btn.sm { padding:3px 10px; font-size:12px; }
+/* ================= 便利贴（多面板磁吸右侧，原地拉开，可拖动缩放，多皮肤） ================= */
+  .note-btn { background: var(--accent-soft); border-color: #c9dbfa; }
+  .note-btn:hover { background: #dcebfc; border-color: #a9c8f5; }
+  .nb-root { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
+  /* 皮肤色变量 */
+  .nb-panel {
+    --st-bg: #fffef5; --st-head: #fdf6c9; --st-border: #e8d98a; --st-strong: #b8a635;
+    --st-text: #3a3418; --st-muted: #8a7b2f; --st-soft: #f6ecad; --st-soft2: #faf4cf; --st-done: #7ba32f;
+  }
+  .nb-panel[data-color="yellow"] { --st-bg:#fffef5; --st-head:#fdf6c9; --st-border:#e8d98a; --st-strong:#b8a635; --st-text:#3a3418; --st-muted:#8a7b2f; --st-soft:#f6ecad; --st-soft2:#faf4cf; --st-done:#7ba32f; }
+  .nb-panel[data-color="blue"]   { --st-bg:#f5faff; --st-head:#e3f0fd; --st-border:#a8c8f0; --st-strong:#4a86d8; --st-text:#1c2a3a; --st-muted:#5a7396; --st-soft:#d4e6fb; --st-soft2:#e8f2fd; --st-done:#2f6fed; }
+  .nb-panel[data-color="green"]  { --st-bg:#f4fbf4; --st-head:#e0f5e0; --st-border:#9fd9a8; --st-strong:#4a9d58; --st-text:#1a3020; --st-muted:#5a7d63; --st-soft:#cdefcf; --st-soft2:#e6f7e6; --st-done:#2f8a3d; }
+  .nb-panel[data-color="pink"]   { --st-bg:#fff5f7; --st-head:#ffe3e9; --st-border:#f2b8c6; --st-strong:#d86a86; --st-text:#3a1c24; --st-muted:#96606f; --st-soft:#fbd4dd; --st-soft2:#feecf0; --st-done:#c74e6e; }
+  .nb-panel[data-color="purple"] { --st-bg:#faf6ff; --st-head:#efe4fd; --st-border:#c9b8f0; --st-strong:#8a63d8; --st-text:#281a3a; --st-muted:#6f5a96; --st-soft:#e2d4fb; --st-soft2:#f2ebfd; --st-done:#7a4ec7; }
+  .nb-panel[data-color="orange"] { --st-bg:#fffaf2; --st-head:#ffeeda; --st-border:#f0c8a0; --st-strong:#d88a3a; --st-text:#3a2812; --st-muted:#96764f; --st-soft:#fbdfc0; --st-soft2:#fef2e4; --st-done:#c8762a; }
+  /* 目录使用中性的白色卡片，颜色只用于标识每本便利贴。 */
+  .nb-panel[data-key="dir"] {
+    --st-bg: #fff; --st-head: #fff; --st-border: #e5e7eb; --st-strong: #6b7280;
+    --st-text: #1f2937; --st-muted: #6b7280; --st-soft: #f3f4f6; --st-soft2: #f8fafc; --st-done: #6b7280;
+  }
+
+  .nb-panel {
+    position: fixed; pointer-events: auto;
+    right: 12px; top: 64px; left: auto;   /* 默认贴右（CSS 兜底，不可能跑到中间） */
+    width: 400px; height: min(540px, calc(100vh - 80px));
+    min-width: 300px; min-height: 240px;
+    max-width: calc(100vw - 24px); max-height: calc(100vh - 76px);
+    background: var(--st-bg); border: 1px solid color-mix(in srgb, var(--st-border) 72%, #fff); border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(30, 40, 60, 0.14);
+    display: flex; flex-direction: column; overflow: hidden;
+    transform-origin: top right;
+    animation: nb-pop .18s ease-out;
+  }
+  .nb-panel.snapping { transition: right .18s ease-out, top .18s ease-out; }
+  /* 目录内联新建行 */
+  .dir-inline {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; flex-wrap: wrap;
+    border: 1px dashed var(--st-border); margin-top: 4px; background: var(--st-soft2);
+  }
+  .dir-inline .dot { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+  .dir-inline .color-select { position: relative; flex: 0 0 34px; }
+  .dir-inline .color-trigger {
+    display: flex; align-items: center; justify-content: center; gap: 3px; width: 34px; height: 26px;
+    padding: 2px 4px; background: var(--st-bg); border: 1px solid var(--st-border); border-radius: 6px; cursor: pointer;
+  }
+  .dir-inline .color-trigger .swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); }
+  .dir-inline .color-trigger .chevron { color: var(--st-muted); font-size: 9px; line-height: 1; }
+  .dir-inline .color-trigger:hover, .dir-inline .color-select.open .color-trigger { background: var(--st-soft); }
+  .dir-inline .color-menu {
+    display: none; position: absolute; z-index: 10; bottom: calc(100% + 4px); left: 0; grid-template-columns: repeat(3, 24px);
+    gap: 5px; padding: 6px; background: var(--st-bg); border: 1px solid var(--st-border); border-radius: 7px;
+    box-shadow: 0 6px 16px rgba(30,40,60,.16);
+  }
+  .dir-inline .color-select.open .color-menu { display: grid; }
+  .dir-inline .color-option {
+    width: 24px; height: 24px; padding: 3px; border: 2px solid transparent; border-radius: 6px; background: transparent; cursor: pointer;
+  }
+  .dir-inline .color-option:hover, .dir-inline .color-option[aria-selected="true"] { border-color: var(--st-strong); }
+  .dir-inline .color-option .swatch { display: block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); }
+  .dir-inline input {
+    flex: 1; background: var(--st-bg); border: 1px solid var(--st-border); border-radius: 6px;
+    padding: 4px 8px; font-size: 13px; color: var(--st-text);
+  }
+  .dir-inline .new-content {
+    flex: 1 0 100%; min-height: 52px; max-height: 150px; padding: 6px 8px; resize: vertical;
+    background: var(--st-bg); border: 1px solid var(--st-border); border-radius: 6px;
+    color: var(--st-text); font: 13px/1.5 Consolas, "Microsoft YaHei", monospace; outline: none;
+  }
+  .dir-inline .new-content:focus, .dir-inline input:focus, .dir-inline .color-trigger:focus-visible,
+  .dir-inline .color-option:focus-visible { border-color: var(--st-strong); box-shadow: 0 0 0 2px color-mix(in srgb, var(--st-strong) 22%, transparent); }
+  @keyframes nb-pop { from { transform: scale(.94) translateY(-8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+  .nb-panel.dragging { opacity: .92; box-shadow: 0 16px 40px rgba(30, 40, 60, 0.24); transition: none !important; }
+  .nb-panel.snapping { transition: left .18s ease-out, top .18s ease-out; }
+  .nb-head {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+    background: color-mix(in srgb, var(--st-head) 76%, #fff); border-bottom: 1px solid color-mix(in srgb, var(--st-border) 55%, transparent);
+    cursor: move; user-select: none;
+  }
+  .nb-head .title { font-weight: 700; font-size: 14px; color: var(--st-text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nb-head .icon-btn {
+    background: transparent; border: none; cursor: pointer; font-size: 14px; padding: 4px 6px;
+    border-radius: 5px; line-height: 1; color: var(--st-text);
+  }
+  .nb-head .icon-btn:hover { background: color-mix(in srgb, var(--st-soft) 75%, #fff); }
+  .nb-stats {
+    padding: 6px 12px; font-size: 12px; color: var(--st-muted); background: var(--st-soft2);
+    border-bottom: 1px solid var(--st-border); display: flex; gap: 8px; align-items: center;
+  }
+  .nb-stats .btn { font-size: 11px; padding: 2px 9px; background: var(--st-bg); border-color: var(--st-border); color: var(--st-text); }
+  .nb-stats .btn:hover { background: var(--st-soft); }
+  .nb-stats .btn.active { background: var(--st-strong); border-color: var(--st-strong); color: #fff; }
+  .nb-panel > [data-role="note-host"] { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .nb-body-inner { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px; scrollbar-width: thin; scrollbar-color: var(--st-border) transparent; }
+  .nb-body-inner::-webkit-scrollbar, .nb-body-inner textarea::-webkit-scrollbar, .dir-list::-webkit-scrollbar, .sticky-history::-webkit-scrollbar { width: 2px; height: 2px; }
+  .nb-body-inner::-webkit-scrollbar-track, .nb-body-inner textarea::-webkit-scrollbar-track, .dir-list::-webkit-scrollbar-track, .sticky-history::-webkit-scrollbar-track { background: transparent; }
+  .nb-body-inner::-webkit-scrollbar-thumb, .nb-body-inner textarea::-webkit-scrollbar-thumb, .dir-list::-webkit-scrollbar-thumb, .sticky-history::-webkit-scrollbar-thumb { background: var(--st-border); border-radius: 2px; }
+  .nb-body-inner textarea { display: block; width: 100%; height: 100%; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--st-border) transparent; background: transparent; border: none; font: 400 13px/1.65 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: var(--st-text); resize: none; outline: none; letter-spacing: normal; }
+  .nb-panel > [data-role="note-host"] > .nb-stats, .nb-panel > [data-role="note-host"] > .nb-foot { flex-shrink: 0; }
+  .nb-foot {
+    display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid color-mix(in srgb, var(--st-border) 55%, transparent); background: color-mix(in srgb, var(--st-head) 58%, #fff);
+    flex-wrap: wrap; align-items: center;
+  }
+  .nb-foot .btn { font-size: 12px; padding: 3px 10px; background: var(--st-bg); border-color: var(--st-border); color: var(--st-text); }
+  .nb-foot .btn:hover { background: var(--st-soft); }
+  .nb-foot .btn.primary { background: var(--st-done); border-color: var(--st-done); color: #fff; }
+  /* 目录列表 */
+  .dir-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; }
+  .dir-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+    cursor: pointer; border: 1px solid transparent; margin-bottom: 4px;
+  }
+  .dir-item:hover { background: var(--st-soft2); border-color: var(--st-border); }
+  .dir-item .dot { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.12); }
+  .dir-item .info { flex: 1; min-width: 0; }
+  .dir-item .info .t { font-weight: 600; font-size: 13px; color: var(--st-text); }
+  .dir-item .info .d { font-size: 11px; color: var(--st-muted); margin-top: 2px; }
+  .dir-item .prog { font-size: 11px; color: var(--st-muted); flex-shrink: 0; }
+  .dir-item .prog b { color: var(--st-strong); }
+  /* 色卡 */
+  .color-pick { display: flex; gap: 4px; align-items: center; }
+  .color-pick .cp { width: 16px; height: 16px; border-radius: 5px; cursor: pointer; border: 2px solid transparent; padding: 0; flex-shrink: 0; }
+  .color-pick .cp.sel { border-color: var(--st-strong); }
+  /* 修订历史 */
+  .sticky-history { max-height: 100%; overflow: auto; }
+  .hist-item { display: flex; gap: 8px; align-items: center; padding: 6px 6px; border-bottom: 1px dashed var(--st-border); font-size: 12px; color: var(--st-text); }
+  .hist-item:last-child { border-bottom: none; }
+  .hist-item .who { font-weight: 700; flex-shrink: 0; }
+  .hist-item .who.ai { color: #b06fd4; }
+  .hist-item .who.human { color: #2f6fed; }
+  .hist-item .when { color: var(--st-muted); flex-shrink: 0; }
+  .hist-item .nt { color: var(--st-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hist-item .restore { background: transparent; border: 1px solid var(--st-border); color: var(--st-muted); border-radius: 5px; font-size: 11px; padding: 1px 7px; cursor: pointer; }
+  /* 调整大小手柄 */
+  .nb-panel .nb-resizer {
+    position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize;
+    z-index: 5; touch-action: none;
+    background: linear-gradient(135deg, transparent 50%, var(--st-strong) 50%);
+    opacity: .45; border-bottom-right-radius: 11px;
+  }
+  /* ===== 目录手风琴条目（点击原地展开；拖动排序；拖出成独立面板） ===== */
+  .dir-note {
+    --dir-note-color: #cbd5e1; --dir-note-soft: #f8fafc;
+    border: 1px solid color-mix(in srgb, var(--dir-note-color) 25%, #e5e7eb); border-radius: 11px; margin-bottom: 7px;
+    background: var(--dir-note-soft); box-shadow: 0 2px 7px rgba(15, 23, 42, .06); overflow: hidden;
+  }
+  .dir-note[data-color="yellow"] { --dir-note-color: #e3b341; --dir-note-soft: #fffbeb; }
+  .dir-note[data-color="blue"] { --dir-note-color: #4f8dcc; --dir-note-soft: #eff6ff; }
+  .dir-note[data-color="green"] { --dir-note-color: #5ba66a; --dir-note-soft: #f0fdf4; }
+  .dir-note[data-color="pink"] { --dir-note-color: #d8738e; --dir-note-soft: #fff1f2; }
+  .dir-note[data-color="purple"] { --dir-note-color: #9270c7; --dir-note-soft: #faf5ff; }
+  .dir-note[data-color="orange"] { --dir-note-color: #d78a42; --dir-note-soft: #fff7ed; }
+  .dir-note-head {
+    display: flex; gap: 8px; align-items: center; padding: 9px 11px;
+    cursor: grab; user-select: none; touch-action: none;
+  }
+  .dir-note-head:active { cursor: grabbing; }
+  .dir-note-head:hover { background: color-mix(in srgb, var(--dir-note-soft) 72%, #fff); }
+  .dir-note-head .arrow { color: var(--st-muted); font-size: 11px; transition: transform .15s; width: 12px; text-align: center; flex-shrink: 0; }
+  .dir-note.expanded .dir-note-head .arrow { transform: rotate(90deg); }
+  .dir-note-head .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,.12); }
+  .dir-note-head .info { flex: 1; min-width: 0; }
+  .dir-note-head .info .t { font-weight: 600; font-size: 13px; color: var(--st-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dir-note-head .info .d { font-size: 11px; color: var(--st-muted); margin-top: 1px; }
+  .dir-note-head .prog { font-size: 11px; color: var(--st-muted); flex-shrink: 0; }
+  .dir-note-head .prog b { color: var(--st-strong); }
+  .dir-note-body { border-top: 1px solid color-mix(in srgb, var(--dir-note-color) 20%, #eef0f2); background: #fff; display: flex; flex-direction: column; height: min(560px, calc(100vh - 190px)); min-height: 120px; }
+  .dir-note:not(.expanded) .dir-note-body { display: none; min-height: 0; }
+  .dir-note-body > .nb-stats, .dir-note-body > .nb-foot { flex-shrink: 0; }
+  .dir-note-body > .nb-body-inner { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  .dir-note-body > .nb-body-inner textarea { height: 100%; min-height: 0; }
+  .dir-note-body { position: relative; }
+  .dir-note-resizer {
+    position: absolute; z-index: 6; left: 10px; right: 10px; bottom: 0; height: 9px; cursor: ns-resize;
+    border-top: 1px solid color-mix(in srgb, var(--st-strong) 55%, transparent); opacity: .6;
+  }
+  .dir-note-resizer::after { content: ""; position: absolute; left: 50%; top: -3px; width: 34px; border-top: 2px solid var(--st-strong); transform: translateX(-50%); }
+  .dir-note-resizer:hover, .dir-note.resizing .dir-note-resizer { opacity: 1; }
+  .dir-note.resizing { user-select: none; }
+  .md-content { color: var(--st-text); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  .md-content > :first-child { margin-top: 0; }
+  .md-content > :last-child { margin-bottom: 0; }
+  .md-content h1, .md-content h2, .md-content h3, .md-content h4, .md-content h5, .md-content h6 { color: var(--st-text); line-height: 1.35; margin: 14px 0 6px; }
+  .md-content h1 { font-size: 21px; } .md-content h2 { font-size: 18px; } .md-content h3 { font-size: 16px; }
+  .md-content h4, .md-content h5, .md-content h6 { font-size: 14px; }
+  .md-content p { margin: 7px 0; white-space: normal; }
+  .md-content p br { content: ""; display: block; margin-top: 3px; }
+  .md-content strong { font-weight: 700; } .md-content em { font-style: italic; }
+  .md-content del { opacity: .72; }
+  .md-content a { color: var(--st-strong); text-decoration: underline; text-underline-offset: 2px; }
+  .md-content img { display: block; max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; }
+  .md-content blockquote { margin: 8px 0; padding: 5px 10px; border-left: 3px solid var(--st-strong); background: var(--st-soft2); color: var(--st-muted); }
+  .md-content ul, .md-content ol { margin: 6px 0; padding-left: 24px; }
+  .md-content li { margin: 3px 0; padding-left: 2px; }
+  .md-content li > ul, .md-content li > ol { margin: 2px 0; }
+  .md-content .md-task-item { list-style: none; margin-left: -22px; display: flex; align-items: flex-start; gap: 7px; }
+  .md-content .md-task-box {
+    appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 3px 0 0;
+    flex: 0 0 16px; border: 1.5px solid var(--st-strong); border-radius: 4px; background: transparent;
+    cursor: pointer; position: relative;
+  }
+  .md-content .md-task-box:checked { background: var(--st-done); border-color: var(--st-done); }
+  .md-content .md-task-box:checked::after {
+    content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
+  .md-content .md-task-box:focus-visible { outline: 2px solid color-mix(in srgb, var(--st-strong) 35%, transparent); outline-offset: 2px; }
+  .md-content .md-task-item.done .txt { text-decoration: line-through; color: var(--st-muted); }
+  .md-content .md-task-item .txt { flex: 1; min-width: 0; }
+  .md-content code { padding: 1px 4px; border-radius: 4px; background: var(--st-soft); color: var(--st-text); font: 12px/1.45 Consolas, monospace; }
+  .md-content pre { overflow: auto; margin: 8px 0; padding: 9px 10px; border-radius: 6px; background: color-mix(in srgb, var(--st-text) 9%, var(--st-bg)); scrollbar-width: thin; scrollbar-color: var(--st-border) transparent; }
+  .md-content pre code { padding: 0; background: transparent; white-space: pre; }
+  .md-content hr { border: 0; border-top: 1px solid var(--st-border); margin: 12px 0; }
+  .md-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+  .md-content th, .md-content td { padding: 5px 7px; border: 1px solid var(--st-border); text-align: left; vertical-align: top; }
+  .md-content th { background: var(--st-soft); font-weight: 700; }
+  /* 排序指示 */
+  .dir-note.drop-before { box-shadow: 0 -3px 0 0 var(--st-strong); }
+  .dir-note.drop-after { box-shadow: 0 3px 0 0 var(--st-strong); }
+  .dir-note.dragging-src { opacity: .35; }
+  /* 拖出幽灵 */
+  .nb-ghost {
+    position: fixed; z-index: 300; pointer-events: none;
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: #fff; border: 1px solid #c9d4e6; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(30,40,60,.25); font-size: 13px; color: #1c2330;
+    opacity: .92;
+  }
+  .nb-ghost .dot { width: 12px; height: 12px; border-radius: 4px; }
+
+  /* Harness 右侧固定面板：目录直接填满嵌入容器，不再套一层浮动窗口。 */
+  body[data-embedded="1"] { min-width: 0; background: var(--panel); }
+  body[data-embedded="1"] > header { display: none; }
+  body[data-embedded="1"] .nb-root { position: absolute; inset: 0; }
+  body[data-embedded="1"] .nb-panel[data-key="dir"] {
+    position: absolute; top: 8px !important; right: 8px !important; bottom: auto !important; left: 8px !important;
+    width: auto !important; height: 50vh !important; min-height: 240px; max-height: calc(100% - 16px);
+    max-width: none;
+    border: 1px solid var(--st-border); border-radius: 12px; box-shadow: 0 8px 24px rgba(30, 40, 60, .12); animation: none;
+  }
+  body[data-embedded="note"] { min-width: 0; background: transparent; overflow: hidden; }
+  body[data-embedded="note"] > header { display: none; }
+  body[data-embedded="note"] .nb-root { position: absolute; inset: 0; }
+  body[data-embedded="note"] .nb-panel[data-key]:not([data-key="dir"]) {
+    position: absolute; inset: 0 !important; width: 100% !important; height: 100% !important;
+    min-width: 0; min-height: 0; max-width: none; max-height: none;
+    border: 0; border-radius: 0; box-shadow: none; animation: none;
+  }
+
+</style>
+</head>
+<body>
+<header><strong>便利贴</strong><span class="sub">独立个人记录</span><div class="spacer"></div><button class="btn note-btn" id="btn-notes" title="打开便利贴目录">🗒️ 便利贴</button></header>
+<div class="nb-root" id="nb-root"></div>
+<script>
+const $ = id => document.getElementById(id);
+async function fetchJson(url, options) { const res = await fetch(url, options); const data = await res.json(); if (!res.ok) throw new Error(data.error ?? res.statusText); return data; }
+/* ================= 便利贴（手风琴目录：原地展开 / 拖动排序 / 拖出为独立面板） =================
+   交互模型（对齐 PinNote 分组概念）：
+   - 右上角按钮 → 目录面板（贴右、可拖动缩放）
+   - 目录里每个便利贴是一个条目：点击 → 在目录内原地展开（不弹窗）
+   - 条目 head 拖动 → 在目录内上下排序（顺序持久化）
+   - 拖出目录面板边界 → 变成独立浮动面板（可拖动缩放/胶囊化）；独立面板可"放回目录" */
+const NOTES_API = "/stickies/api";
+const NOTE_COLORS = ["yellow", "blue", "green", "pink", "purple", "orange"];
+const COLOR_HEX = { yellow: "#f6e58a", blue: "#8ec2f5", green: "#93d89a", pink: "#f2a8bb", purple: "#c3a4f0", orange: "#f2b878" };
+
+/* 注册表：key(noteId 或 'dir') -> panel 对象 { el, bodyEl, key, state, inline } */
+const nbPanels = new Map();
+/* 目录内展开的 noteId（目录面板刷新后恢复展开态） */
+const nbExpanded = new Set();
+/* 独立面板吸附顺序（贴右垂直分布用） */
+const nbSnapOrder = [];
+const NB_TOP = 64;
+const NB_GAP = 10;
+const NB_MARGIN = 12;
+
+function nbEsc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+/* ---------- 独立面板布局：单列贴右垂直分布（未拖拽过的重新分布避免重叠） ---------- */
+
+function nbAllocate(h, excludeKey) {
+  const vh = window.innerHeight;
+  const usableTop = NB_TOP - 20;
+  const usableBottom = vh - NB_MARGIN;
+  const taken = [];
+  for (const key of nbSnapOrder) {
+    if (key === excludeKey) continue;
+    const p = nbPanels.get(key);
+    if (!p || p.inline || p.state?.userMoved) continue;
+    const rect = p.el.getBoundingClientRect();
+    taken.push({ top: rect.top, bottom: rect.bottom });
+  }
+  taken.sort((a, b) => a.top - b.top);
+  let top = usableTop;
+  for (const seg of taken) {
+    if (top + h <= seg.top - NB_GAP) break;
+    top = Math.max(top, seg.bottom + NB_GAP);
+  }
+  if (top + h > usableBottom) top = Math.max(usableTop, usableBottom - h);
+  return { top };
+}
+
+function nbReflow() {
+  for (const key of nbSnapOrder) {
+    const p = nbPanels.get(key);
+    if (!p || p.inline || p.state?.userMoved) continue;
+    const pos = nbAllocate(p.el.getBoundingClientRect().height, key);
+    p.el.classList.add("snapping");
+    p.el.style.right = `${NB_MARGIN}px`;
+    p.el.style.left = "auto";
+    p.el.style.top = `${pos.top}px`;
+    setTimeout(() => p.el.classList.remove("snapping"), 220);
+  }
+}
+
+function nbSnapOrderAdd(key) {
+  if (!nbSnapOrder.includes(key)) nbSnapOrder.push(key);
+}
+function nbSnapOrderRemove(key) {
+  const i = nbSnapOrder.indexOf(key);
+  if (i >= 0) nbSnapOrder.splice(i, 1);
+}
+
+/* ---------- 统一内容区（独立面板与目录内嵌共用同一套 data-role 结构） ---------- */
+
+function nbNoteBodyHtml() {
+  return `
+    <div class="nb-stats">
+      <span data-role="progress">—</span>
+      <div style="flex:1"></div>
+      <button class="btn" data-role="insert-checklist">＋ 清单项</button>
+       <button class="btn" data-role="mode-hist">修订历史</button>
+      
+      
+    </div>
+    <div class="nb-body-inner" data-role="body"><div class="empty-tip">加载中…</div></div>
+    <div class="nb-foot">
+      <button class="btn primary sm" data-role="save">保存</button>
+      <button class="btn sm" data-role="copy">复制为讨论提示</button>
+      <span style="color:var(--st-muted);font-size:11px;margin-left:auto" data-role="saved-at"></span>
+    </div>`;
+}
+
+/** 把一本便利贴的交互 UI 挂到容器上（独立面板 body 或目录条目 body）。 */
+function nbAttachNoteUI(containerEl, note, { inline, dirPanel }) {
+  containerEl.innerHTML = nbNoteBodyHtml();
+  const state = {
+    id: note.id, name: note.name, color: note.color ?? "yellow",
+    content: note.content, rev: note.revision,
+    mode: "preview", dirty: false, saveTimer: null, userMoved: false
+  };
+  const panel = {
+    el: containerEl.closest(".nb-panel") ?? containerEl,
+    scopeEl: containerEl,                    // stats+body+foot 公共容器：跨区 data-role 查询用
+    bodyEl: containerEl.querySelector('[data-role="body"]'),
+    key: note.id, inline: !!inline, dirPanel, state,
+    get w() { return (this.el ?? this.bodyEl).getBoundingClientRect().width; },
+    get h() { return (this.el ?? this.bodyEl).getBoundingClientRect().height; }
+  };
+  nbPanels.set(note.id, panel);
+  nbWireNotePanel(panel, { inline });
+  nbRenderNoteStats(panel);
+  nbRenderNoteBody(panel);
+  if (inline) nbMakeInlineResizer(panel);
+  containerEl.querySelector('[data-role="saved-at"]').textContent = `rev${note.revision}`;
+  return panel;
+}
+
+function nbMakeInlineResizer(panel) {
+  const entry = panel.bodyEl.closest(".dir-note");
+  if (!entry) return;
+  const body = entry.querySelector(".dir-note-body");
+  const savedHeight = Number(localStorage.getItem(`sticky-note-height:${panel.state.id}`));
+  const minHeight = 120;
+  const maxHeight = () => {
+    const directory = panel.dirPanel?.el ?? nbPanels.get("dir")?.el;
+    const directoryBottom = directory?.getBoundingClientRect().bottom ?? window.innerHeight;
+    const bodyTop = body.getBoundingClientRect().top;
+    return Math.max(minHeight, Math.floor(directoryBottom - bodyTop - 8));
+  };
+  const clampHeight = height => Math.max(minHeight, Math.min(maxHeight(), height));
+  if (Number.isFinite(savedHeight) && savedHeight > 0) body.style.height = `${clampHeight(savedHeight)}px`;
+  if (body.querySelector(".dir-note-resizer")) return;
+  const handle = document.createElement("div");
+  handle.className = "dir-note-resizer";
+  handle.setAttribute("role", "separator");
+  handle.setAttribute("aria-label", "调整便利贴高度");
+  handle.setAttribute("aria-orientation", "horizontal");
+  handle.tabIndex = 0;
+  body.appendChild(handle);
+  let startY = 0, startHeight = 0, resizing = false;
+  const updateHeight = height => {
+    body.style.height = `${clampHeight(height)}px`;
+  };
+  panel.clampHeight = height => updateHeight(height);
+  const onPointerMove = e => {
+    if (!resizing) return;
+    updateHeight(startHeight + e.clientY - startY);
+  };
+  const stopResize = e => {
+    if (!resizing) return;
+    resizing = false;
+    entry.classList.remove("resizing");
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", stopResize);
+    if (e?.pointerId != null) handle.releasePointerCapture?.(e.pointerId);
+    localStorage.setItem(`sticky-note-height:${panel.state.id}`, String(Math.round(body.getBoundingClientRect().height)));
+  };
+  handle.addEventListener("pointerdown", e => {
+    resizing = true;
+    startY = e.clientY;
+    startHeight = body.getBoundingClientRect().height;
+    entry.classList.add("resizing");
+    handle.setPointerCapture?.(e.pointerId);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", stopResize);
+    e.preventDefault();
+  });
+  handle.addEventListener("pointercancel", stopResize);
+  handle.addEventListener("keydown", e => {
+    if (!["ArrowUp", "ArrowDown"].includes(e.key)) return;
+    updateHeight(body.getBoundingClientRect().height + (e.key === "ArrowDown" ? 24 : -24));
+    localStorage.setItem(`sticky-note-height:${panel.state.id}`, String(Math.round(body.getBoundingClientRect().height)));
+    e.preventDefault();
+  });
+}
+
+function nbWireNotePanel(panel, { inline = false } = {}) {
+  // 作用域严格限定在"本便利贴容器"（stats+body+foot 的父级），多本展开时不串绑
+  const bodyScoped = panel.bodyEl.parentElement;
+  const q = role => bodyScoped.querySelector(`[data-role="${role}"]`);
+  const headEl = panel.el.classList?.contains("nb-panel") ? panel.el.querySelector(".nb-head") : panel.bodyEl.closest(".dir-note")?.querySelector(".dir-note-head");
+  const s = panel.state;
+     function nbInsertChecklist(panel) {
+     const s = panel.state;
+     if (s.mode !== "edit") { s.mode = "edit"; nbRenderNoteBody(panel); }
+     const ta = panel.bodyEl.querySelector("textarea");
+     if (!ta) return;
+     const start = ta.selectionStart, end = ta.selectionEnd;
+     const lineStart = s.content.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+     const nextBreak = s.content.indexOf("\n", end);
+     const lineEnd = nextBreak < 0 ? s.content.length : nextBreak;
+     const selected = s.content.slice(lineStart, lineEnd);
+     const converted = selected.split("\n").map(line => {
+       if (/^\s*- \[[ xX]\]\s*/u.test(line)) return line.replace(/^(\s*)- \[[ xX]\]\s*/u, "$1- [ ] ");
+       const indent = (/^\s*/u.exec(line)?.[0]) ?? "";
+       const text = line.slice(indent.length);
+       return text ? `${indent}- [ ] ${text}` : `${indent}- [ ] `;
+     }).join("\n");
+     s.content = s.content.slice(0, lineStart) + converted + s.content.slice(lineEnd);
+     s.dirty = true;
+     nbRenderNoteBody(panel);
+     const next = panel.bodyEl.querySelector("textarea");
+     if (next) { next.focus(); next.selectionStart = lineStart; next.selectionEnd = lineStart + converted.length; }
+     nbScheduleSave(panel);
+   }
+      q("insert-checklist").onmousedown = e => e.preventDefault();
+   q("insert-checklist").onclick = () => {
+     nbInsertChecklist(panel);
+     return;
+     s.mode = "edit";
+     nbRenderNoteBody(panel);
+     const ta = panel.bodyEl.querySelector("textarea");
+     if (!ta) return;
+     const start = ta.selectionStart;
+     const before = s.content.slice(0, start);
+     const prefix = before && !before.endsWith("\n") ? "\n" : "";
+     const addition = `${prefix}- [ ] `;
+     s.content = `${before}${addition}${s.content.slice(start)}`;
+     s.dirty = true;
+     nbRenderNoteBody(panel);
+     const next = panel.bodyEl.querySelector("textarea");
+     next.focus();
+     next.selectionStart = next.selectionEnd = start + addition.length;
+     nbScheduleSave(panel);
+   };
+    
+  
+  q("mode-hist").onclick = () => { s.mode = s.mode === "history" ? "preview" : "history"; nbRenderNoteBody(panel); };
+  // 色卡（独立面板在 head；目录内嵌在 stats 条旁无色卡，颜色改动走目录外的独立编辑）
+  const colorsHost = headEl?.querySelector('[data-role="colors"]');
+  if (colorsHost) {
+    const renderColors = () => {
+      colorsHost.innerHTML = NOTE_COLORS.map(c =>
+        `<button class="cp ${c === s.color ? "sel" : ""}" data-c="${c}" title="${c}" style="background:${COLOR_HEX[c]}"></button>`).join("");
+      colorsHost.querySelectorAll(".cp").forEach(btn => {
+        btn.onclick = async () => {
+          s.color = btn.dataset.c;
+          (panel.el.classList?.contains("nb-panel") ? panel.el : panel.bodyEl.closest(".nb-panel"))?.setAttribute("data-color", s.color);
+          const entry = panel.bodyEl?.closest(".dir-note");
+          if (entry) {
+            entry.dataset.color = s.color;
+            entry.querySelector(".dir-note-head .dot")?.setAttribute("style", `background:${COLOR_HEX[s.color]}`);
+          }
+          renderColors();
+          try {
+            await fetchJson(`${NOTES_API}/color`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: s.id, color: s.color })
+            });
+          } catch { /* 不阻塞 */ }
+        };
+      });
+    };
+    renderColors();
+  }
+  // 重命名
+  const renameBtn = headEl?.querySelector('[data-role="rename"]');
+  if (renameBtn) renameBtn.onclick = async () => {
+    const name = prompt("新名称", s.name);
+    if (!name) return;
+    await fetchJson(`${NOTES_API}/rename`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: s.id, name })
+    });
+    s.name = name;
+    const titleEl = panel.el.querySelector?.(".title") ?? panel.bodyEl.closest(".nb-panel")?.querySelector(".title");
+    if (titleEl) titleEl.textContent = name;
+    const entry = panel.bodyEl?.closest(".dir-note");
+    if (entry) entry.querySelector(".info .t").textContent = name;
+  };
+  // 删除
+  const delBtn = headEl?.querySelector('[data-role="del"]');
+  if (delBtn) delBtn.onclick = async () => {
+    if (!confirm("确定删除这个便利贴？（历史一并删除）")) return;
+    await fetchJson(`${NOTES_API}/delete`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: s.id })
+    });
+    nbDestroyNoteUI(s.id);
+    const dir = nbPanels.get("dir");
+    if (dir) nbLoadDir(dir);
+  };
+  // 放回目录（仅独立面板）
+  const dockBtn = headEl?.querySelector('[data-role="dock-back"]');
+  if (dockBtn) dockBtn.onclick = () => nbDockBack(panel);
+  // 保存 / 复制
+  q("save").onclick = () => nbSavePanel(panel, true);
+  q("copy").onclick = async () => {
+    const prompt = `请围绕便利贴「${s.name}」进行讨论。当前内容（- [ ] 待解决，- [x] 已解决）：\n\n${s.content}\n\n请逐条分析未解决问题并给出建议；如需修改清单请保持 markdown 格式并在回复末尾给出修订后的完整清单（我会以 AI 身份写回并留痕）。`;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      q("saved-at").textContent = "讨论提示已复制";
+    } catch {
+      q("saved-at").textContent = "复制失败";
+    }
+  };
+}
+
+function nbDestroyNoteUI(id) {
+  const p = nbPanels.get(id);
+  if (!p) return;
+  if (p.inline) {
+    const entry = p.bodyEl?.closest(".dir-note");
+    if (entry) {
+      entry.classList.remove("expanded");
+      const body = entry.querySelector(".dir-note-body");
+      if (body) body.innerHTML = "";
+    }
+    nbExpanded.delete(id);
+  } else {
+    p.el.remove();
+    nbSnapOrderRemove(id);
+  }
+  nbPanels.delete(id);
+}
+
+/* ---------- 清单/文本/历史 渲染（两态共用） ---------- */
+
+function nbRenderNoteStats(panel) {
+  const s = panel.state;
+  const done = (s.content.match(/- \[x\]/giu) ?? []).length;
+  const open = (s.content.match(/- \[ \]/gu) ?? []).length;
+  panel.scopeEl.querySelector('[data-role="progress"]').textContent = `待解决 ${open} · 已解决 ${done}`;
+  
+  
+}
+
+function mdSafeUrl(url, image = false) {
+  const value = String(url ?? "").trim();
+  if (!value || /^(?:javascript|vbscript|data)(?::|$)/iu.test(value) && !(image && /^data:image\/(?:gif|jpe?g|png|webp|svg\+xml);/iu.test(value))) return "#";
+  return nbEsc(value);
+}
+
+function mdInline(text) {
+  const protectedParts = [];
+  const protect = html => {
+    const key = `\u0000${protectedParts.length}\u0000`;
+    protectedParts.push(html);
+    return key;
+  };
+  let value = String(text ?? "");
+  value = value.replace(/`([^`\n]+)`/gu, (_, code) => protect(`<code>${nbEsc(code)}</code>`));
+  value = value.replace(/!\[([^\]]*)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)/gu, (_, alt, url, title) =>
+    protect(`<img src="${mdSafeUrl(url, true)}" alt="${nbEsc(alt)}"${title ? ` title="${nbEsc(title)}"` : ""}>`));
+  value = value.replace(/\[([^\]]+)\]\((\S+?)(?:\s+["']([^"']*)["'])?\)/gu, (_, label, url, title) =>
+    protect(`<a href="${mdSafeUrl(url)}" target="_blank" rel="noreferrer"${title ? ` title="${nbEsc(title)}"` : ""}>${mdInline(label)}</a>`));
+  value = nbEsc(value)
+    .replace(/(https?:\/\/[^\s<]+)/gu, match => protect(`<a href="${mdSafeUrl(match)}" target="_blank" rel="noreferrer">${match}</a>`))
+    .replace(/\*\*([^*\n]+)\*\*/gu, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/gu, "<strong>$1</strong>")
+    .replace(/~~([^~\n]+)~~/gu, "<del>$1</del>")
+    .replace(/(?<![\w*])\*([^*\n]+)\*(?!\*)/gu, "<em>$1</em>")
+    .replace(/(?<![\w_])_([^_\n]+)_(?![\w_])/gu, "<em>$1</em>");
+  return value.replace(/\u0000(\d+)\u0000/gu, (_, index) => protectedParts[Number(index)] ?? "");
+}
+
+function mdSplitTableRow(line) {
+  let value = line.trim();
+  if (value.startsWith("|")) value = value.slice(1);
+  if (value.endsWith("|") && !value.endsWith("\\|")) value = value.slice(0, -1);
+  const cells = [];
+  let cell = "", escaped = false;
+  for (const char of value) {
+    if (char === "|" && !escaped) { cells.push(cell.trim()); cell = ""; continue; }
+    if (char === "\\" && !escaped) { escaped = true; cell += char; continue; }
+    escaped = false; cell += char;
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function mdIsTableDivider(line) {
+  const cells = mdSplitTableRow(line);
+  return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/u.test(cell));
+}
+
+function mdRenderTable(lines) {
+  const header = mdSplitTableRow(lines[0]);
+  const divider = mdSplitTableRow(lines[1]);
+  const aligns = divider.map(cell => cell.startsWith(":") && cell.endsWith(":") ? "center" : cell.endsWith(":") ? "right" : cell.startsWith(":") ? "left" : "");
+  const cellHtml = (tag, cell, index) => `<${tag}${aligns[index] ? ` style="text-align:${aligns[index]}"` : ""}>${mdInline(cell ?? "")}</${tag}>`;
+  let html = `<table><thead><tr>${header.map((cell, index) => cellHtml("th", cell, index)).join("")}</tr></thead><tbody>`;
+  for (const line of lines.slice(2)) {
+    const cells = mdSplitTableRow(line);
+    html += `<tr>${header.map((_, index) => cellHtml("td", cells[index] ?? "", index)).join("")}</tr>`;
+  }
+  return `${html}</tbody></table>`;
+}
+
+function mdRenderList(lines, start, ordered) {
+  const tag = ordered ? "ol" : "ul";
+  let html = `<${tag}>`;
+  for (let i = start; i < lines.length; i += 1) {
+    const match = /^(\s*)([-+*]|\d+[.)])\s+(.*)$/u.exec(lines[i]);
+    if (!match || (!!ordered !== /^\d/u.test(match[2]))) break;
+    const task = /^(\[[ xX]\])\s*(.*)$/u.exec(match[3]);
+    if (task) {
+      const done = task[1].toLowerCase() === "[x]";
+      html += `<li class="md-task-item ${done ? "done" : ""}"><input class="md-task-box" type="checkbox" data-toggle="${i}"${done ? " checked" : ""} aria-label="切换清单项：${nbEsc(task[2])}"><span class="txt">${mdInline(task[2])}</span></li>`;
+    } else {
+      html += `<li>${mdInline(match[3])}</li>`;
+    }
+  }
+  return `${html}</${tag}>`;
+}
+
+function nbRenderMarkdown(content) {
+  const lines = String(content ?? "").replace(/\r\n?/gu, "\n").split("\n");
+  let html = "", paragraph = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html += `<p>${paragraph.map(mdInline).join("<br>")}</p>`;
+    paragraph = [];
+  };
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    if (/^\s*```/u.test(line) || /^\s*~~~/u.test(line)) {
+      flushParagraph();
+      const fence = /^\s*(```|~~~)\s*([^\s]*)?.*$/u.exec(line);
+      const close = fence[1][0];
+      const code = [];
+      i += 1;
+      while (i < lines.length && !new RegExp(`^\\s*${close}{3,}\\s*$`, "u").test(lines[i])) code.push(lines[i++]);
+      if (i < lines.length) i += 1;
+      html += `<pre><code${fence[2] ? ` data-language="${nbEsc(fence[2])}"` : ""}>${nbEsc(code.join("\n"))}</code></pre>`;
+      continue;
+    }
+    const heading = /^( {0,3})(#{1,6})\s+(.*?)\s*#*\s*$/u.exec(line);
+    if (heading) { flushParagraph(); const level = heading[2].length; html += `<h${level}>${mdInline(heading[3])}</h${level}>`; i += 1; continue; }
+    if (/^\s*(?:\*\s*){3,}$|^\s*(?:-\s*){3,}$|^\s*(?:_\s*){3,}$/u.test(line)) { flushParagraph(); html += "<hr>"; i += 1; continue; }
+    if (i + 1 < lines.length && line.includes("|") && mdIsTableDivider(lines[i + 1])) {
+      flushParagraph(); const table = [line, lines[i + 1]]; i += 2;
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) table.push(lines[i++]);
+      html += mdRenderTable(table); continue;
+    }
+    const list = /^(\s*)([-+*]|\d+[.)])\s+(.*)$/u.exec(line);
+    if (list) {
+      flushParagraph();
+      const ordered = /^\d/u.test(list[2]);
+      html += mdRenderList(lines, i, ordered);
+      const listMarker = /^(\s*)([-+*]|\d+[.)])\s+/u;
+      while (i < lines.length) {
+        const next = listMarker.exec(lines[i]);
+        if (!next || ordered !== /^\d/u.test(next[2])) break;
+        i += 1;
+      }
+      continue;
+    }
+    if (/^\s*>\s?/u.test(line)) {
+      flushParagraph(); const quote = []; while (i < lines.length && /^\s*>\s?/u.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/u, ""));
+      html += `<blockquote>${quote.map(mdInline).join("<br>")}</blockquote>`; continue;
+    }
+    if (!line.trim()) { flushParagraph(); i += 1; continue; }
+    paragraph.push(line); i += 1;
+  }
+  flushParagraph();
+  return `<div class="md-content">${html}</div>`;
+}
+
+function nbRenderNoteBody(panel) {
+  const s = panel.state;
+  const body = panel.bodyEl;
+  if (s.mode === "edit") {
+    body.innerHTML = `<textarea spellcheck="false">${nbEsc(s.content)}</textarea>`;
+    const ta = body.querySelector("textarea");
+    ta.onblur = () => { s.mode = "preview"; nbRenderNoteBody(panel); };
+     ta.oninput = () => {
+      s.content = ta.value;
+      s.dirty = true;
+      nbRenderNoteStats(panel);
+      nbScheduleSave(panel);
+    };
+  } else if (s.mode === "history") {
+    nbRenderNoteHistory(panel);
+  } else {
+    body.innerHTML = s.content.trim() ? nbRenderMarkdown(s.content) : '<div class="empty-tip">空便利贴 — 点击此处开始编辑</div>';
+    body.onclick = e => { if (e.target.closest("[data-toggle], a, img, button")) return; s.mode = "edit"; nbRenderNoteBody(panel); panel.bodyEl.querySelector("textarea")?.focus(); };
+    body.querySelectorAll("[data-toggle]").forEach(box => {
+      box.onclick = () => nbToggleItem(panel, Number(box.dataset.toggle));
+    });
+  }
+  nbRenderNoteStats(panel);
+}
+
+function nbToggleItem(panel, lineIdx) {
+  const s = panel.state;
+  const lines = s.content.split("\n");
+  const line = lines[lineIdx] ?? "";
+  const unchecked = /^(\s*(?:[-+*]|\d+[.)])\s+)\[ \]/u;
+  const checked = /^(\s*(?:[-+*]|\d+[.)])\s+)\[x\]/iu;
+  if (unchecked.test(line)) lines[lineIdx] = line.replace(unchecked, "$1[x]");
+  else if (checked.test(line)) lines[lineIdx] = line.replace(checked, "$1[ ]");
+  s.content = lines.join("\n");
+  s.dirty = true;
+  nbScheduleSave(panel);
+  nbRenderNoteBody(panel);
+}
+
+function nbScheduleSave(panel) {
+  clearTimeout(panel.state.saveTimer);
+  panel.state.saveTimer = setTimeout(() => nbSavePanel(panel, false), 900);
+}
+
+async function nbSavePanel(panel, manual = true) {
+  const s = panel.state;
+  const result = await fetchJson(`${NOTES_API}/save`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: s.id, content: s.content, author: "human", note: manual ? "人工保存" : "自动保存" })
+  });
+  s.dirty = false;
+  s.rev = result.revision;
+  const savedAt = panel.scopeEl.querySelector('[data-role="saved-at"]');
+  if (savedAt) savedAt.textContent = `已保存 rev${result.revision}（人工）`;
+  if (manual && s.mode === "edit") { s.mode = "list"; nbRenderNoteBody(panel); }
+}
+
+function nbRenderNoteHistory(panel) {
+  const s = panel.state;
+  fetchJson(`${NOTES_API}/history?id=${s.id}`).then(({ history }) => {
+    const body = panel.bodyEl;
+    body.innerHTML = `<div class="sticky-history">` + (history.slice().reverse().map(h => `
+      <div class="hist-item">
+        <span class="who ${h.author}">${h.author === "ai" ? "🤖 AI" : "👤 人工"}</span>
+        <span class="when">rev${h.rev} · ${new Date(h.at).toLocaleString()}</span>
+        <span class="nt">${nbEsc(h.note ?? "")}</span>
+        <button class="restore" data-restore="${h.rev}">回滚</button>
+      </div>`).join("") || '<div class="empty-tip">无修订历史</div>') + `</div>`;
+    body.querySelectorAll("[data-restore]").forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm(`回滚到 rev ${btn.dataset.restore}？（本次回滚也会留痕）`)) return;
+        await fetchJson(`${NOTES_API}/restore`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: s.id, rev: Number(btn.dataset.restore), author: "human" })
+        });
+        const note = await fetchJson(`${NOTES_API}/get?id=${s.id}`);
+        s.content = note.content;
+        s.rev = note.revision;
+        s.mode = "list";
+        nbRenderNoteBody(panel);
+        panel.scopeEl.querySelector('[data-role="saved-at"]').textContent = `rev${note.revision}（已回滚）`;
+      };
+    });
+  }).catch(e => {
+    panel.bodyEl.innerHTML = `<div class="empty-tip">${nbEsc(e.message)}</div>`;
+  });
+}
+
+/* ---------- 独立面板（拖出后的形态） ---------- */
+
+function nbPanelShell({ key, color, title, headButtons, withBody }) {
+  const el = document.createElement("div");
+  el.className = "nb-panel";
+  el.dataset.color = color;
+  el.dataset.key = key;
+  el.innerHTML = `
+    <div class="nb-head">
+      <span class="title">${nbEsc(title)}</span>
+      ${headButtons ?? ""}
+      <button class="icon-btn nb-close" title="收起">✕</button>
+    </div>
+    ${withBody ? `<div data-role="note-host"></div>` : ""}
+    <div class="nb-resizer"></div>`;
+  el.querySelector(".nb-close").onclick = () => key === "dir" ? nbCloseDir() : nbClosePanel(key);
+   el.addEventListener("mousedown", () => {
+     el.style.zIndex = String(100 + nbPanels.size + 5);
+   });
+  document.getElementById("nb-root").appendChild(el);
+  return el;
+}
+
+function nbOpenNotePanel(noteId, opts = {}) {
+  if (nbPanels.has(noteId)) {
+    const p = nbPanels.get(noteId);
+    if (!p.inline) nbFocusPanel(noteId);
+    return p;
+  }
+  // 若目录中展开，先收起
+  const dir = nbPanels.get("dir");
+  if (dir && nbExpanded.has(noteId)) nbCollapseEntry(dir, noteId);
+
+  const noteMeta = opts.note;
+  const vh = window.innerHeight;
+  const w = Math.min(400, window.innerWidth - 24);
+  const h = Math.min(520, vh - 80);
+  const el = nbPanelShell({
+    key: noteId, color: noteMeta?.color ?? "yellow",
+    title: noteMeta?.name ?? "便利贴",
+    headButtons: `<div class="color-pick" data-role="colors"></div>
+      <button class="icon-btn" data-role="rename" title="重命名">✎</button>
+      <button class="icon-btn" data-role="dock-back" title="放回目录">📥</button>
+      <button class="icon-btn" data-role="del" title="删除">🗑</button>`,
+    withBody: true
+  });
+  const panel = {
+    el, key: noteId, inline: false, snapped: !opts.pos,
+    state: { userMoved: !!opts.pos },
+    get bodyEl() { return el.querySelector('[data-role="note-host"]'); }
+  };
+  el.style.width = `${w}px`;
+  el.style.height = `${h}px`;
+  if (opts.pos) {
+    // 拖出：在指针位置打开
+    el.style.left = `${Math.max(4, opts.pos.x - w / 2)}px`;
+    el.style.top = `${Math.max(4, opts.pos.y - 20)}px`;
+    el.style.right = "auto";
+  } else {
+    const pos = nbAllocate(h);
+    el.style.right = `${NB_MARGIN}px`;
+    el.style.left = "auto";
+    el.style.top = `${pos.top}px`;
+    nbSnapOrderAdd(noteId);
+  }
+  el.style.zIndex = String(90 + nbPanels.size);
+  nbPanels.set(noteId, panel);
+  const wirePanel = { ...panel, state: panel.state };
+  fetchJson(`${NOTES_API}/get?id=${noteId}`).then(note => {
+    el.dataset.color = note.color ?? "yellow";
+    el.querySelector(".title").textContent = note.name;
+    nbAttachNoteUI(el.querySelector('[data-role="note-host"]'), note, { inline: false, dirPanel: dir });
+    nbMakeDraggable(nbPanels.get(noteId));
+    nbMakeResizable(nbPanels.get(noteId));
+  }).catch(e => {
+    el.querySelector('[data-role="note-host"]').innerHTML = `<div class="empty-tip">${nbEsc(e.message)}</div>`;
+  });
+  return panel;
+}
+
+function nbClosePanel(key) {
+  const p = nbPanels.get(key);
+  if (!p) return;
+  if (p.state?.dirty) nbSavePanel(p, false);
+  if (document.body.dataset.embedded === "note" && window.parent !== window) {
+    p.el.remove();
+    nbPanels.delete(key);
+    window.parent.postMessage({ type: "sticky-notes-note-close", id: key }, location.origin);
+    return;
+  }
+  if (p.inline) {
+    p.el.classList.remove("expanded");
+    const body = p.bodyEl?.closest(".dir-note")?.querySelector(".dir-note-body");
+    if (body) body.innerHTML = "";
+    nbExpanded.delete(key);
+  } else {
+    p.el.remove();
+    nbSnapOrderRemove(key);
+     nbExpanded.delete(key);
+  }
+  nbPanels.delete(key);
+  if (!p.inline) {
+     const dir = nbPanels.get("dir") ?? nbToggleDir();
+     if (dir) nbLoadDir(dir);
+     nbReflow();
+   }
+}
+
+function nbFocusPanel(key) {
+  const p = nbPanels.get(key);
+  if (p && !p.inline) p.el.style.zIndex = String(90 + nbPanels.size + 2);
+}
+
+/* 独立面板拖动/缩放/胶囊（仅独立面板） */
+
+function nbMakeDraggable(panel) {
+  const { el } = panel;
+  const handle = el.querySelector(".nb-head");
+  let startX = 0, startY = 0, origLeft = 0, origTop = 0, dragging = false, pointerId = null;
+  const embeddedNote = () => document.body.dataset.embedded === "note" && window.parent !== window;
+  const onMove = e => {
+    if (!dragging || e.pointerId !== pointerId) return;
+    if (embeddedNote()) {
+      window.parent.postMessage({
+        type: "sticky-notes-panel-drag", id: panel.key,
+        dx: e.clientX - startX, dy: e.clientY - startY
+      }, location.origin);
+      return;
+    }
+    el.style.left = `${Math.max(4, origLeft + e.clientX - startX)}px`;
+    el.style.top = `${Math.max(4, origTop + e.clientY - startY)}px`;
+  };
+  const onUp = e => {
+    if (!dragging || e.pointerId !== pointerId) return;
+    dragging = false;
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+    handle.releasePointerCapture?.(pointerId);
+    pointerId = null;
+    el.classList.remove("dragging");
+    if (embeddedNote()) {
+      window.parent.postMessage({ type: "sticky-notes-panel-drag-end", id: panel.key }, location.origin);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const distToRight = window.innerWidth - rect.right;
+    if (distToRight < 80) {
+      panel.state.userMoved = false;
+      panel.snapped = true;
+      nbSnapOrderAdd(panel.key);
+      nbReflow();
+    } else {
+      panel.state.userMoved = true;
+      panel.snapped = false;
+      nbSnapOrderRemove(panel.key);
+    }
+  };
+  handle.addEventListener("pointerdown", e => {
+    if (e.target.closest("button") || e.target.closest(".cp")) return;
+    if (el.classList.contains("pill")) return;
+    dragging = true;
+    pointerId = e.pointerId;
+    el.classList.remove("snapping");
+    el.classList.add("dragging");
+    const rect = el.getBoundingClientRect();
+    origLeft = rect.left; origTop = rect.top;
+    startX = e.clientX; startY = e.clientY;
+    handle.setPointerCapture?.(pointerId);
+    if (embeddedNote()) {
+      const frameRect = window.frameElement?.getBoundingClientRect();
+      window.parent.postMessage({
+        type: "sticky-notes-panel-drag-start", id: panel.key, pointerId,
+        x: (frameRect?.left ?? 0) + e.clientX, y: (frameRect?.top ?? 0) + e.clientY
+      }, location.origin);
+      e.preventDefault();
+    } else {
+      el.style.left = `${origLeft}px`;
+      el.style.right = "auto";
+      el.style.top = `${origTop}px`;
+      el.style.zIndex = String(90 + nbPanels.size + 2);
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  });
+}
+
+function nbMakeResizable(panel) {
+  const handle = panel.el.querySelector(".nb-resizer");
+  if (!handle) return;
+  let startX = 0, startY = 0, origW = 0, origH = 0, resizing = false;
+  const embeddedDirectory = document.body.dataset.embedded === "1" && panel.key === "dir" && window.parent !== window;
+  const embeddedNote = document.body.dataset.embedded === "note" && window.parent !== window;
+  const minWidth = embeddedNote ? 240 : 300;
+  const minHeight = embeddedNote ? 180 : 240;
+  const onMove = e => {
+    if (!resizing || e.pointerId !== handle._resizePointerId) return;
+    const nextW = embeddedDirectory ? origW : Math.max(minWidth, origW + e.clientX - startX);
+    const nextH = Math.max(minHeight, origH + e.clientY - startY);
+    if (embeddedDirectory) {
+      panel.state.userHeight = nextH;
+      window.parent.postMessage({ type: "sticky-notes-directory-resize", height: nextH }, location.origin);
+    } else if (embeddedNote) {
+      window.parent.postMessage({ type: "sticky-notes-note-resize", id: panel.key, width: nextW, height: nextH }, location.origin);
+    } else {
+      panel.el.style.width = `${nextW}px`;
+      panel.el.style.height = `${nextH}px`;
+    }
+  };
+  const stopResize = e => {
+    if (!resizing || (e?.pointerId != null && e.pointerId !== handle._resizePointerId)) return;
+    resizing = false;
+    panel.el.style.userSelect = "";
+    handle.releasePointerCapture?.(handle._resizePointerId);
+    handle._resizePointerId = null;
+    if (panel.snapped) nbReflow();
+  };
+  handle.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const rect = panel.el.getBoundingClientRect();
+    origW = rect.width; origH = rect.height;
+    startX = e.clientX; startY = e.clientY;
+    resizing = true;
+    handle._resizePointerId = e.pointerId;
+    panel.el.style.userSelect = "none";
+    handle.setPointerCapture?.(e.pointerId);
+    e.preventDefault(); e.stopPropagation();
+  });
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", stopResize);
+  handle.addEventListener("pointercancel", stopResize);
+}
+
+/* ---------- 目录面板（手风琴） ---------- */
+
+function nbToggleDir() {
+  if (nbPanels.has("dir")) { nbCloseDir(); return; }
+  const el = nbPanelShell({
+    key: "dir", color: "blue",
+    title: "便利贴目录",
+    headButtons: `<button class="icon-btn" data-role="dir-collapse-all" title="全部收起">⤒</button>`
+  });
+  el.querySelector('[data-role="dir-collapse-all"]').onclick = () => {
+    const dirPanel = nbPanels.get("dir");
+    for (const id of [...nbExpanded]) {
+      const p = nbPanels.get(id);
+      if (dirPanel && p?.inline) nbCollapseEntry(dirPanel, id);
+    }
+  };
+  // 目录结构：列表 + 内联新建
+  const list = document.createElement("div");
+  list.className = "dir-list";
+  list.setAttribute("data-role", "dir-list");
+  list.innerHTML = '<div class="empty-tip">加载中…</div>';
+  const foot = document.createElement("div");
+  foot.className = "nb-foot";
+  foot.innerHTML = `
+    <div style="flex:1"></div>
+    <button class="btn sm" data-role="dir-new">＋ 新建</button>`;
+  el.insertBefore(list, el.querySelector(".nb-resizer"));
+  el.insertBefore(foot, el.querySelector(".nb-resizer"));
+  const h = Math.min(560, window.innerHeight - 80);
+  el.style.height = `${h}px`;
+  el.style.top = `${NB_TOP}px`;
+  const panel = { el, key: "dir", inline: true, state: { notes: [], newColor: "yellow", userHeight: null }, bodyEl: list };
+  nbPanels.set("dir", panel);
+  nbMakeDraggable(panel);
+  nbMakeResizable(panel);
+  foot.querySelector('[data-role="dir-new"]').onclick = () => nbCreateNote(panel);
+
+  nbLoadDir(panel);
+  nbFitEmbeddedDirectory(panel);
+  return panel;
+}
+
+function nbFitEmbeddedDirectory(panel = nbPanels.get("dir")) {
+  if (document.body.dataset.embedded !== "1" || !panel?.el || window.parent === window) return;
+  const availableHeight = Math.max(240, window.innerHeight - 16);
+  const preferredHeight = Number(panel.state?.userHeight);
+  // 父页面已经把 iframe 设为屏幕高度的一半；目录卡片默认填满 iframe，避免再对 iframe 高度二次折半。
+  const defaultHeight = availableHeight;
+  const hasPreferredHeight = Number.isFinite(preferredHeight) && preferredHeight > 0;
+  const targetHeight = Math.min(hasPreferredHeight ? preferredHeight : defaultHeight, availableHeight);
+  panel.el.style.setProperty("height", `${targetHeight}px`, "important");
+}
+
+function nbClampInlineHeights() {
+  const dirPanel = nbPanels.get("dir");
+  if (!dirPanel) return;
+  for (const id of nbExpanded) {
+    const panel = nbPanels.get(id);
+    const body = panel?.bodyEl?.closest(".dir-note-body");
+    if (panel?.inline && panel.clampHeight && body) panel.clampHeight(body.getBoundingClientRect().height);
+  }
+}
+
+function nbCloseDir() {
+  const p = nbPanels.get("dir");
+  if (!p) return;
+  if (document.body.dataset.embedded === "1" && window.parent !== window) {
+    window.parent.postMessage({ type: "sticky-notes-close" }, location.origin);
+  }
+  for (const id of [...nbExpanded]) {
+    const notePanel = nbPanels.get(id);
+    if (notePanel?.state?.dirty) nbSavePanel(notePanel, false);
+    nbPanels.delete(id);
+  }
+  nbExpanded.clear();
+  p.el.remove();
+  nbPanels.delete("dir");
+}
+
+function nbRenderDirColors(panel) {
+  const host = panel.el.querySelector('[data-role="dir-colors"]');
+  host.innerHTML = `<span style="font-size:12px;color:var(--st-muted)">颜色</span>` + NOTE_COLORS.map(c =>
+    `<button class="cp ${c === panel.state.newColor ? "sel" : ""}" data-c="${c}" title="${c}" style="background:${COLOR_HEX[c]}"></button>`).join("");
+  host.querySelectorAll(".cp").forEach(btn => {
+    btn.onclick = () => { panel.state.newColor = btn.dataset.c; nbRenderDirColors(panel); };
+  });
+}
+
+async function nbLoadDir(panel) {
+  const list = panel.el.querySelector('[data-role="dir-list"]');
+  try {
+    const { notes } = await fetchJson(`${NOTES_API}/list`);
+    panel.state.notes = notes;
+    if (!notes.length) {
+      list.innerHTML = '<div class="empty-tip">还没有便利贴<br>点下方 ＋ 新建一本</div>';
+      return;
+    }
+    list.innerHTML = notes.map(n => {
+      const c = COLOR_HEX[n.color ?? "yellow"] ?? COLOR_HEX.yellow;
+      return `<div class="dir-note" data-id="${nbEsc(n.id)}" data-color="${n.color ?? "yellow"}">
+        <div class="dir-note-head">
+          <span class="arrow">▸</span>
+          <div class="dot" style="background:${c}"></div>
+          <div class="info">
+            <div class="t">${nbEsc(n.name)}</div>
+            <div class="d">rev${n.revision ?? 1} · 更新于 ${n.updated_at ? new Date(n.updated_at).toLocaleString() : "—"}</div>
+          </div>
+          <div class="prog"><b>${n.stats?.open ?? 0}</b>/${n.stats?.done ?? 0}</div>
+        </div>
+        <div class="dir-note-body"></div>
+      </div>`;
+    }).join("");
+    // 绑定手势：点击展开/拖动排序/拖出
+    list.querySelectorAll(".dir-note").forEach(entry => {
+      const meta = notes.find(n => n.id === entry.dataset.id);
+      nbBindEntryGestures(panel, entry, meta);
+    });
+    // 恢复展开态
+    for (const id of [...nbExpanded]) {
+      if (notes.some(n => n.id === id) && !nbPanels.has(id)) {
+        nbExpandEntry(panel, id);
+      }
+    }
+  } catch (e) {
+    list.innerHTML = `<div class="empty-tip">${nbEsc(e.message)}</div>`;
+  }
+}
+
+/** 展开（在目录内原地渲染内容）。 */
+async function nbExpandEntry(dirPanel, noteId) {
+  const entry = dirPanel.el.querySelector(`.dir-note[data-id="${noteId}"]`);
+  if (!entry) return null;
+  if (entry.classList.contains("expanded")) return nbPanels.get(noteId) ?? null;
+  entry.classList.add("expanded");
+  nbExpanded.add(noteId);
+  const body = entry.querySelector(".dir-note-body");
+  body.innerHTML = '<div class="empty-tip">加载中…</div>';
+  try {
+    const note = await fetchJson(`${NOTES_API}/get?id=${noteId}`);
+    entry.dataset.color = note.color ?? "yellow";
+    return nbAttachNoteUI(body, note, { inline: true, dirPanel });
+  } catch (e) {
+    body.innerHTML = `<div class="empty-tip">${nbEsc(e.message)}</div>`;
+    return null;
+  }
+}
+
+/** 收起。 */
+function nbCollapseEntry(dirPanel, noteId) {
+  const entry = dirPanel.el.querySelector(`.dir-note[data-id="${noteId}"]`);
+  const p = nbPanels.get(noteId);
+  if (p?.state?.dirty) nbSavePanel(p, false);
+  if (entry) {
+    entry.classList.remove("expanded");
+    const body = entry.querySelector(".dir-note-body");
+    if (body) body.innerHTML = "";
+  }
+  nbPanels.delete(noteId);
+  nbExpanded.delete(noteId);
+}
+
+/** 拖出：目录条目 → 独立面板。 */
+function nbDetachNote(dirPanel, noteId, x, y) {
+  const meta = (dirPanel.state.notes ?? []).find(n => n.id === noteId);
+  const p = nbPanels.get(noteId);
+  const note = p?.state ? { ...meta, content: p.state.content } : meta;
+  if (p?.inline) {
+    // 直接销毁内嵌（不保存触发，内容在 state 里带走）
+    if (p.state.dirty) nbSavePanel(p, false);
+    const entry = dirPanel.el.querySelector(`.dir-note[data-id="${noteId}"]`);
+    if (entry) {
+      entry.classList.remove("expanded");
+      entry.remove();
+    }
+    nbPanels.delete(noteId);
+    nbExpanded.delete(noteId);
+  }
+  dirPanel.el.querySelector(`.dir-note[data-id="${noteId}"]`)?.remove();
+  nbOpenNotePanel(noteId, { pos: { x, y }, note });
+}
+
+/** 放回目录：独立面板 → 目录条目。 */
+function nbDockBack(panel) {
+  const id = panel.key;
+  if (document.body.dataset.embedded === "note" && window.parent !== window) {
+    if (panel.state?.dirty) nbSavePanel(panel, false);
+    panel.el.remove();
+    nbPanels.delete(id);
+    window.parent.postMessage({ type: "sticky-notes-note-dock-back", id }, location.origin);
+    return;
+  }
+  if (panel.state?.dirty) nbSavePanel(panel, false);
+  panel.el.remove();
+  nbPanels.delete(id);
+  nbSnapOrderRemove(id);
+  nbExpanded.delete(id);
+  nbReflow();
+  const dir = nbPanels.get("dir");
+  if (dir) {
+    nbLoadDir(dir).then(() => {
+      if (nbPanels.has("dir")) nbExpandEntry(nbPanels.get("dir"), id);
+    });
+  }
+}
+
+/* ---------- 条目手势：点击展开 / 拖动排序 / 拖出 ---------- */
+
+function nbBindEntryGestures(dirPanel, entry, meta) {
+  const head = entry.querySelector(".dir-note-head");
+  let startX = 0, startY = 0, moved = false, gesture = null, ghost = null, pointerId = null, dragBounds = null, ghostRaf = 0, ghostPending = null;
+
+  function dirRect() { return dirPanel.el.getBoundingClientRect(); }
+  function inDir(x, y) {
+    const r = dragBounds ?? dirRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+  function makeGhost(x, y) {
+    ghost = document.createElement("div");
+    ghost.className = "nb-ghost";
+    ghost.innerHTML = `<div class="dot" style="background:${COLOR_HEX[meta.color] ?? COLOR_HEX.yellow}"></div>${nbEsc(meta.name)}`;
+    document.body.appendChild(ghost);
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y) {
+    if (!ghost) return;
+    ghostPending = { x, y };
+    if (ghostRaf) return;
+    ghostRaf = requestAnimationFrame(() => {
+      ghostRaf = 0;
+      if (!ghost || !ghostPending) return;
+      ghost.style.transform = `translate3d(${ghostPending.x + 10}px, ${ghostPending.y - 14}px, 0)`;
+    });
+  }
+  function clearDropMarks() {
+    dirPanel.el.querySelectorAll(".dir-note").forEach(n => n.classList.remove("drop-before", "drop-after"));
+  }
+  function markDropTarget(x, y) {
+    clearDropMarks();
+    const entries = [...dirPanel.el.querySelectorAll(".dir-note")].filter(n => n !== entry);
+    for (const n of entries) {
+      const r = n.getBoundingClientRect();
+      if (y < r.top + r.height / 2 && y >= r.top - 6) { n.classList.add("drop-before"); return { el: n, before: true }; }
+      if (y >= r.top + r.height / 2 && y <= r.bottom + 6) { n.classList.add("drop-after"); return { el: n, before: false }; }
+    }
+    return null;
+  }
+
+  head.addEventListener("pointerdown", e => {
+    if (e.target.closest("button") || e.target.closest(".cp")) return;
+    startX = e.clientX; startY = e.clientY;
+    pointerId = e.pointerId;
+    dragBounds = dirRect();
+    moved = false; gesture = null;
+    head.setPointerCapture?.(pointerId);
+    e.preventDefault();
+    if (document.body.dataset.embedded === "1" && window.parent !== window) {
+      const frameRect = window.frameElement?.getBoundingClientRect();
+      entry.dataset.detachStarted = "1";
+      window.parent.postMessage({
+        type: "sticky-notes-detach-start", id: meta.id,
+        name: meta.name, color: COLOR_HEX[meta.color] ?? COLOR_HEX.yellow,
+        pointerId, x: (frameRect?.left ?? 0) + e.clientX, y: (frameRect?.top ?? 0) + e.clientY
+      }, location.origin);
+    }
+
+    const onMove = ev => {
+      if (ev.pointerId !== pointerId) return;
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) < 6) return;
+      if (!moved) {
+        moved = true;
+        // 拖出态下展开内容随手带走：先收起内嵌 UI（保留状态）
+        if (entry.classList.contains("expanded")) {
+          const p = nbPanels.get(meta.id);
+          if (p?.inline) {
+            entry.dataset.pendingContent = "1";
+          }
+        }
+      }
+      if (!inDir(ev.clientX, ev.clientY)) {
+        gesture = "detach";
+        if (!ghost) makeGhost(ev.clientX, ev.clientY);
+        moveGhost(ev.clientX, ev.clientY);
+        clearDropMarks();
+        if (document.body.dataset.embedded === "1" && window.parent !== window && !entry.dataset.detachStarted) {
+          entry.dataset.detachStarted = "1";
+          const frameRect = window.frameElement?.getBoundingClientRect();
+          window.parent.postMessage({
+            type: "sticky-notes-detach-start", id: meta.id,
+            name: meta.name, color: COLOR_HEX[meta.color] ?? COLOR_HEX.yellow,
+            pointerId, x: (frameRect?.left ?? 0) + ev.clientX, y: (frameRect?.top ?? 0) + ev.clientY
+          }, location.origin);
+        }
+      } else {
+        gesture = "sort";
+        if (ghost) { ghost.remove(); ghost = null; }
+        entry.classList.add("dragging-src");
+        markDropTarget(ev.clientX, ev.clientY);
+      }
+    };
+
+    const cleanup = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("sticky-notes-drag-finished", onExternalFinish);
+      if (ghostRaf) cancelAnimationFrame(ghostRaf);
+      ghostRaf = 0;
+      ghostPending = null;
+      dragBounds = null;
+      head.releasePointerCapture?.(pointerId);
+      pointerId = null;
+    };
+    const onCancel = () => {
+      if (document.body.dataset.embedded === "1" && window.parent !== window) {
+        window.parent.postMessage({ type: "sticky-notes-drag-cancel", id: meta.id, pointerId }, location.origin);
+      }
+      cleanup();
+      clearDropMarks();
+      entry.classList.remove("dragging-src");
+      delete entry.dataset.detachStarted;
+      if (ghost) { ghost.remove(); ghost = null; }
+    };
+    const onExternalFinish = event => {
+      if (event.detail?.id !== meta.id) return;
+      cleanup();
+      clearDropMarks();
+      entry.classList.remove("dragging-src");
+      delete entry.dataset.detachStarted;
+      if (ghost) { ghost.remove(); ghost = null; }
+    };
+    const onUp = async ev => {
+      if (ev.pointerId !== pointerId) return;
+      if (document.body.dataset.embedded === "1" && window.parent !== window && gesture !== "detach") {
+        window.parent.postMessage({ type: "sticky-notes-drag-cancel", id: meta.id, pointerId }, location.origin);
+      }
+      cleanup();
+      clearDropMarks();
+      entry.classList.remove("dragging-src");
+      delete entry.dataset.detachStarted;
+      if (ghost) { ghost.remove(); ghost = null; }
+      // 点击（未拖动）→ 展开/收起
+      if (!moved) {
+        if (entry.classList.contains("expanded")) nbCollapseEntry(dirPanel, meta.id);
+        else nbExpandEntry(dirPanel, meta.id);
+        return;
+      }
+      if (gesture === "detach") {
+        if (document.body.dataset.embedded === "1" && window.parent !== window) {
+          const frameRect = window.frameElement?.getBoundingClientRect();
+          window.parent.postMessage({
+            type: "sticky-notes-detach", id: meta.id,
+            x: (frameRect?.left ?? 0) + ev.clientX, y: (frameRect?.top ?? 0) + ev.clientY
+          }, location.origin);
+        } else {
+          nbDetachNote(dirPanel, meta.id, ev.clientX, ev.clientY);
+        }
+        return;
+      }
+      if (gesture === "sort") {
+        // DOM 落位
+        const target = markDropTarget(ev.clientX, ev.clientY);
+        if (target?.el) {
+          const parent = target.el.parentElement;
+          parent.insertBefore(entry, target.before ? target.el : target.el.nextSibling);
+        }
+        // 收集顺序并持久化；排序不应改变当前条目的展开状态
+        const ids = [...dirPanel.el.querySelectorAll(".dir-note")].map(n => n.dataset.id);
+        const wasExpanded = nbExpanded.has(meta.id);
+        if (wasExpanded) nbCollapseEntry(dirPanel, meta.id);
+        try {
+          await fetchJson(`${NOTES_API}/reorder`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids })
+          });
+        } catch { /* 排序失败不阻塞 */ }
+        await nbLoadDir(dirPanel);
+        if (wasExpanded && nbPanels.has("dir")) await nbExpandEntry(dirPanel, meta.id);
+      }
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onCancel);
+    window.addEventListener("sticky-notes-drag-finished", onExternalFinish);
+  });
+}
+
+/* ---------- 目录内联新建 ---------- */
+
+function nbCreateNote(panel) {
+  const list = panel.el.querySelector('[data-role="dir-list"]');
+  if (list.querySelector(".dir-inline")) { list.querySelector(".dir-inline input")?.focus(); return; }
+  list.querySelector(".empty-tip")?.remove();
+  const row = document.createElement("div");
+  row.className = "dir-inline";
+  row.innerHTML = `<div class="color-select">
+      <button type="button" class="color-trigger" aria-label="选择便利贴颜色" aria-haspopup="listbox" aria-expanded="false">
+        <span class="swatch"></span><span class="chevron">▴</span>
+      </button>
+      <div class="color-menu" role="listbox" aria-label="便利贴颜色"></div>
+    </div>
+    <input type="text" placeholder="名称（可留空）">
+    <textarea class="new-content" placeholder="内容（可选，支持 Markdown）"></textarea>
+    <button class="btn sm">确定</button>`;
+  list.appendChild(row);
+  const input = row.querySelector("input");
+  const contentInput = row.querySelector(".new-content");
+  const colorSelect = row.querySelector(".color-select");
+  const colorTrigger = row.querySelector(".color-trigger");
+  const colorMenu = row.querySelector(".color-menu");
+  let selectedColor = NOTE_COLORS.includes(panel.state.newColor) ? panel.state.newColor : "yellow";
+  colorMenu.innerHTML = NOTE_COLORS.map(color =>
+    `<button type="button" class="color-option" role="option" data-color="${color}" aria-label="${color}" aria-selected="false"><span class="swatch" style="background:${COLOR_HEX[color]}"></span></button>`
+  ).join("");
+  const renderColor = () => {
+    colorTrigger.querySelector(".swatch").style.background = COLOR_HEX[selectedColor];
+    colorMenu.querySelectorAll(".color-option").forEach(option => {
+      option.setAttribute("aria-selected", String(option.dataset.color === selectedColor));
+    });
+  };
+  renderColor();
+  colorTrigger.onclick = () => {
+    const open = !colorSelect.classList.contains("open");
+    colorSelect.classList.toggle("open", open);
+    colorTrigger.setAttribute("aria-expanded", String(open));
+  };
+  colorMenu.querySelectorAll(".color-option").forEach(option => {
+    option.onclick = () => {
+      selectedColor = option.dataset.color;
+      panel.state.newColor = selectedColor;
+      renderColor();
+      colorSelect.classList.remove("open");
+      colorTrigger.setAttribute("aria-expanded", "false");
+      input.focus();
+    };
+  });
+  const closeColorMenu = e => {
+    if (!colorSelect.contains(e.target)) {
+      colorSelect.classList.remove("open");
+      colorTrigger.setAttribute("aria-expanded", "false");
+    }
+  };
+  document.addEventListener("mousedown", closeColorMenu);
+  const cleanup = () => document.removeEventListener("mousedown", closeColorMenu);
+  input.focus();
+  let done = false;
+  const commit = async () => {
+    if (done) return;
+    const name = input.value.trim();
+    const content = contentInput.value;
+    done = true;
+    cleanup();
+    try {
+      const created = await fetchJson(`${NOTES_API}/create`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name || "未命名", color: selectedColor, content })
+      });
+      await nbLoadDir(panel);
+      const notePanel = await nbExpandEntry(panel, created.id);
+      if (notePanel && !content.trim()) {
+        notePanel.state.mode = "edit";
+        nbRenderNoteBody(notePanel);
+        notePanel.bodyEl.querySelector("textarea")?.focus();
+      }
+    } catch (e) {
+      alert(`创建失败：${e.message}`);
+      row.remove();
+    }
+  };
+  row.querySelector(".btn").onclick = commit;
+  input.onkeydown = e => {
+    if (e.key === "Enter") commit();
+    if (e.key === "Escape") { cleanup(); row.remove(); }
+  };
+  contentInput.onkeydown = e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) commit();
+    if (e.key === "Escape") { cleanup(); row.remove(); }
+  };
+}
+
+function nbRemoveDraggedEntry(noteId) {
+  const dirPanel = nbPanels.get("dir");
+  const notePanel = nbPanels.get(noteId);
+  if (notePanel?.state?.dirty) nbSavePanel(notePanel, false);
+  dirPanel?.el.querySelector(`.dir-note[data-id="${noteId}"]`)?.remove();
+  nbPanels.delete(noteId);
+  nbExpanded.delete(noteId);
+}
+
+/* ---------- 入口 ---------- */
+
+const embeddedMode = new URLSearchParams(location.search).get("embedded");
+const embeddedNoteId = new URLSearchParams(location.search).get("note");
+if (embeddedMode === "1" || embeddedMode === "note") document.body.dataset.embedded = embeddedMode;
+
+window.addEventListener("message", event => {
+  if (event.origin !== location.origin) return;
+  const data = event.data ?? {};
+  if (data.type === "sticky-notes-dragged" && document.body.dataset.embedded === "1") {
+    nbRemoveDraggedEntry(data.id);
+  } else if (data.type === "sticky-notes-drag-finished" && document.body.dataset.embedded === "1") {
+    window.dispatchEvent(new CustomEvent("sticky-notes-drag-finished", { detail: data }));
+  } else if (data.type === "sticky-notes-refresh" && document.body.dataset.embedded === "1") {
+    const dir = nbPanels.get("dir");
+    if (dir) nbLoadDir(dir);
+  }
+});
+
+document.getElementById("btn-notes").onclick = () => nbToggleDir();
+window.addEventListener("resize", () => {
+  if (nbSnapOrder.length) nbReflow();
+  nbFitEmbeddedDirectory();
+  nbClampInlineHeights();
+});
+
+if (document.body.dataset.embedded === "1") nbToggleDir();
+if (document.body.dataset.embedded === "note" && embeddedNoteId) {
+  fetchJson(`${NOTES_API}/get?id=${encodeURIComponent(embeddedNoteId)}`).then(note => {
+    nbOpenNotePanel(embeddedNoteId, { note });
+  }).catch(error => {
+    document.getElementById("nb-root").textContent = error.message;
+  });
+}
+
+
+</script>
+</body>
+</html>

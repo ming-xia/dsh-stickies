@@ -1,0 +1,5 @@
+# sticky-notes-plugin bundle patch
+# 由 dsh plugin 安装后，Harness 会按组合包名解析 main 入口。
+- insert:
+    - id: sticky-notes-plugin
+      name: 'sticky-notes-plugin'
