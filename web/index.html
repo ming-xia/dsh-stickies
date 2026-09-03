@@ -469,8 +469,13 @@ function nbWireNotePanel(panel, { inline = false } = {}) {
      const nextBreak = s.content.indexOf("\n", end);
      const lineEnd = nextBreak < 0 ? s.content.length : nextBreak;
      const selected = s.content.slice(lineStart, lineEnd);
-     const converted = selected.split("\n").map(line => {
-       if (/^\s*- \[[ xX]\]\s*/u.test(line)) return line.replace(/^(\s*)- \[[ xX]\]\s*/u, "$1- [ ] ");
+     const lines = selected.split("\n");
+     const taskLine = /^(\s*)([-+*]|\d+[.)])\s+\[[ xX]\]\s*(.*)$/u;
+     const allTasks = lines.length > 0 && lines.every(line => taskLine.test(line));
+     const converted = lines.map(line => {
+       const task = taskLine.exec(line);
+       if (allTasks && task) return `${task[1]}${task[3]}`;
+       if (task) return line;
        const indent = (/^\s*/u.exec(line)?.[0]) ?? "";
        const text = line.slice(indent.length);
        return text ? `${indent}- [ ] ${text}` : `${indent}- [ ] `;
@@ -815,17 +820,46 @@ function nbScheduleSave(panel) {
   panel.state.saveTimer = setTimeout(() => nbSavePanel(panel, false), 900);
 }
 
+function nbFlushPendingSaves() {
+  for (const panel of nbPanels.values()) {
+    const s = panel.state;
+    if (!s?.dirty) continue;
+    clearTimeout(s.saveTimer);
+    const body = JSON.stringify({ id: s.id, content: s.content, author: "human", note: "离开页面前自动保存" });
+    try {
+      navigator.sendBeacon(`${NOTES_API}/save`, new Blob([body], { type: "application/json" }));
+    } catch {
+      fetch(`${NOTES_API}/save`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true
+      }).catch(() => {});
+    }
+  }
+}
+
+window.addEventListener("pagehide", nbFlushPendingSaves);
+
 async function nbSavePanel(panel, manual = true) {
   const s = panel.state;
-  const result = await fetchJson(`${NOTES_API}/save`, {
+  clearTimeout(s.saveTimer);
+  if (s.savePromise) {
+    await s.savePromise;
+    if (!s.dirty) return;
+  }
+  const content = s.content;
+  s.savePromise = fetchJson(`${NOTES_API}/save`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: s.id, content: s.content, author: "human", note: manual ? "人工保存" : "自动保存" })
+    body: JSON.stringify({ id: s.id, content, author: "human", note: manual ? "人工保存" : "自动保存" })
+  }).then(result => {
+    s.rev = result.revision;
+    if (s.content === content) s.dirty = false;
+    const savedAt = panel.scopeEl.querySelector('[data-role="saved-at"]');
+    if (savedAt) savedAt.textContent = `已保存 rev${result.revision}${manual ? "（人工）" : ""}`;
+    if (manual && !s.dirty && s.mode === "edit") { s.mode = "list"; nbRenderNoteBody(panel); }
+  }).finally(() => {
+    s.savePromise = null;
+    if (s.dirty) nbScheduleSave(panel);
   });
-  s.dirty = false;
-  s.rev = result.revision;
-  const savedAt = panel.scopeEl.querySelector('[data-role="saved-at"]');
-  if (savedAt) savedAt.textContent = `已保存 rev${result.revision}（人工）`;
-  if (manual && s.mode === "edit") { s.mode = "list"; nbRenderNoteBody(panel); }
+  await s.savePromise;
 }
 
 function nbRenderNoteHistory(panel) {
